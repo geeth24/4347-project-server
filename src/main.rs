@@ -418,15 +418,15 @@ async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokem
     }
 }
 
-#[derive(Deserialize)]
-struct CreatePokemonRequest {
-    name: String,
-    region: String,
-}
+// #[derive(Deserialize)]
+// struct CreatePokemonRequest {
+//     name: String,
+//     region: String,
+// }
 
-async fn create_pokemon(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<CreateUserRequest>,
-) -> ApiResponse<()> {
-    ApiResponse::OK
-}
+// async fn create_pokemon(
+//     State(state): State<Arc<AppState>>,
+//     Json(payload): Json<CreateUserRequest>,
+// ) -> ApiResponse<()> {
+//     ApiResponse::OK
+// }
