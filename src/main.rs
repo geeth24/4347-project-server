@@ -61,6 +61,7 @@ async fn main() {
         .route("/trainer", get(get_trainers))
         .route("/trainer/:id", get(get_trainer))
         .route("/trainer", post(create_trainer))
+        .route("/pokemon", get(get_pokemon))
         .with_state(Arc::new(app_state));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -72,6 +73,13 @@ struct Trainer {
     trainer_id: i32,
     name: String,
     gym_leader: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Pokemon {
+    pokemon_id: i32,
+    name: String,
+    region_id: i32,
 }
 
 #[derive(Serialize)]
@@ -166,6 +174,38 @@ async fn create_trainer(
         Ok(res) => ApiResponse::OK,
         Err(e) => {
             tracing::error!("Failed to create trainer");
+
+            ApiResponse::Error
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct GetPokemonResponse {
+    trainers: Vec<Pokemon>,
+}
+
+async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokemonResponse> {
+    let db = state.db.clone();
+
+    match db.query("SELECT * FROM pokemon", &[]).await {
+        Ok(rows) => {
+            let mut trainers = Vec::new();
+            for r in rows {
+                let trainer = Pokemon {
+                    pokemon_id: r.get(0),
+                    name: r.get(1),
+                    region_id: r.get(2),
+                };
+                trainers.push(trainer);
+            }
+
+            tracing::info!("{:?}", trainers);
+
+            ApiResponse::JsonData(GetPokemonResponse { trainers })
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch pokemon: {:?}", e);
 
             ApiResponse::Error
         }
