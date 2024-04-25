@@ -8,6 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tokio_postgres::{Error, NoTls};
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Serialize)]
 struct Message {
@@ -63,6 +64,7 @@ async fn main() {
         .route("/trainer/:id", delete(delete_trainer))
         .route("/trainer", post(create_trainer))
         .route("/pokemon", get(get_pokemon))
+        .layer(CorsLayer::new().allow_origin(Any))
         .with_state(Arc::new(app_state));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -74,6 +76,7 @@ struct Trainer {
     trainer_id: i32,
     name: String,
     gym_leader: bool,
+    pokemon: Option<Vec<Pokemon>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -95,10 +98,24 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
         Ok(rows) => {
             let mut trainers = Vec::new();
             for r in rows {
+                // let pokemon_res = db
+                //     .query(
+                //         "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
+                //         &[&r.get(0)],
+                //     )
+                //     .await
+                //     .unwrap();
+                //
+                // let pokemon = Vec::new();
+                // for r in pokemon_res {
+                //     let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
+                // }
+
                 let trainer = Trainer {
                     trainer_id: r.get(0),
                     name: r.get(1),
                     gym_leader: r.get(2),
+                    pokemon: None,
                 };
                 trainers.push(trainer);
             }
@@ -137,6 +154,7 @@ async fn get_trainer(
                     trainer_id: r.get(0),
                     name: r.get(1),
                     gym_leader: r.get(2),
+                    pokemon: None,
                 };
                 trainers.push(trainer);
             }
@@ -172,9 +190,9 @@ async fn create_trainer(
         )
         .await
     {
-        Ok(res) => ApiResponse::OK,
+        Ok(_) => ApiResponse::OK,
         Err(e) => {
-            tracing::error!("Failed to create trainer");
+            tracing::error!("Failed to create trainer: {}", e);
 
             ApiResponse::Error
         }
@@ -191,9 +209,9 @@ async fn delete_trainer(
         .execute("DELETE FROM trainer WHERE trainer_id = $1", &[&id])
         .await
     {
-        Ok(res) => ApiResponse::OK,
+        Ok(_) => ApiResponse::OK,
         Err(e) => {
-            tracing::error!("Failed to delete trainer");
+            tracing::error!("Failed to delete trainer: {}", e);
 
             ApiResponse::Error
         }
@@ -230,4 +248,17 @@ async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokem
             ApiResponse::Error
         }
     }
+}
+
+#[derive(Deserialize)]
+struct CreatePokemonRequest {
+    name: String,
+    region: String,
+}
+
+async fn create_pokemon(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateUserRequest>,
+) -> ApiResponse<()> {
+    ApiResponse::OK
 }
