@@ -5,7 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-// use dotenv::dotenv;
+use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tokio_postgres::{Error, NoTls};
@@ -42,14 +42,17 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // dotenev().ok();
+    dotenv().ok();
     tracing_subscriber::fmt::init();
 
     let user = std::env::var("POSTGRES_USER").expect("Missing user env var");
-    let (client, connection) =
-        tokio_postgres::connect("postgres://beam:postgres@localhost/postgres", NoTls)
-            .await
-            .unwrap();
+    let pass = std::env::var("POSTGRES_PASS").expect("Missing postgres pass");
+    let (client, connection) = tokio_postgres::connect(
+        format!("postgres://{}:{}@localhost/postgres", user, pass).as_str(),
+        NoTls,
+    )
+    .await
+    .unwrap();
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -72,7 +75,6 @@ async fn main() {
                 .allow_origin(Any)
                 .allow_methods([Method::GET, Method::POST, Method::DELETE])
                 .allow_headers(Any)
-                .allow_credentials(true)
                 .expose_headers(Any),
         )
         .with_state(Arc::new(app_state));
