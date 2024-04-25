@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -59,6 +59,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/trainer", get(get_trainers))
+        .route("/trainer/:id", get(get_trainer))
+        .route("/trainer", post(create_trainer))
         .with_state(Arc::new(app_state));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -98,6 +100,72 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
         }
         Err(e) => {
             tracing::error!("Failed to fetch trainers: {:?}", e);
+
+            ApiResponse::Error
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct GetTrainerResponse {
+    trainers: Vec<Trainer>,
+}
+
+async fn get_trainer(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i32>,
+) -> ApiResponse<GetTrainerResponse> {
+    let db = state.db.clone();
+
+    match db
+        .query("SELECT * FROM trainer WHERE trainer_id = $1", &[&id])
+        .await
+    {
+        Ok(rows) => {
+            let mut trainers = Vec::new();
+            for r in rows {
+                let trainer = Trainer {
+                    trainer_id: r.get(0),
+                    name: r.get(1),
+                    gym_leader: r.get(2),
+                };
+                trainers.push(trainer);
+            }
+
+            tracing::info!("{:?}", trainers);
+
+            return ApiResponse::JsonData(GetTrainerResponse { trainers });
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch trainers: {:?}", e);
+
+            return ApiResponse::Error;
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct CreateUserRequest {
+    name: String,
+    gym_leader: bool,
+}
+
+async fn create_trainer(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateUserRequest>,
+) -> ApiResponse<()> {
+    let db = state.db.clone();
+
+    match db
+        .execute(
+            "INSERT INTO trainer (name, gym_leader) VALUES ($1, $2)",
+            &[&payload.name, &payload.gym_leader],
+        )
+        .await
+    {
+        Ok(res) => ApiResponse::OK,
+        Err(e) => {
+            tracing::error!("Failed to create trainer");
 
             ApiResponse::Error
         }
