@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -64,7 +64,12 @@ async fn main() {
         .route("/trainer/:id", delete(delete_trainer))
         .route("/trainer", post(create_trainer))
         .route("/pokemon", get(get_pokemon))
-        .layer(CorsLayer::new().allow_origin(Any))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                .allow_headers(Any),
+        )
         .with_state(Arc::new(app_state));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -98,18 +103,18 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
         Ok(rows) => {
             let mut trainers = Vec::new();
             for r in rows {
-                // let pokemon_res = db
-                //     .query(
-                //         "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
-                //         &[&r.get(0)],
-                //     )
-                //     .await
-                //     .unwrap();
-                //
-                // let pokemon = Vec::new();
-                // for r in pokemon_res {
-                //     let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
-                // }
+                let pokemon_res = db
+                    .query(
+                        "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
+                        &[&r.get(0)],
+                    )
+                    .await
+                    .unwrap();
+
+                let pokemon = Vec::new();
+                for r in pokemon_res {
+                    let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
+                }
 
                 let trainer = Trainer {
                     trainer_id: r.get(0),
