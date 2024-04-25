@@ -68,7 +68,9 @@ async fn main() {
             CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods([Method::GET, Method::POST, Method::DELETE])
-                .allow_headers(Any),
+                .allow_headers(Any)
+                .allow_credentials(true)
+                .expose_headers(Any),
         )
         .with_state(Arc::new(app_state));
 
