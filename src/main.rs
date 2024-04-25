@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -60,6 +60,7 @@ async fn main() {
     let app = Router::new()
         .route("/trainer", get(get_trainers))
         .route("/trainer/:id", get(get_trainer))
+        .route("/trainer/:id", delete(delete_trainer))
         .route("/trainer", post(create_trainer))
         .route("/pokemon", get(get_pokemon))
         .with_state(Arc::new(app_state));
@@ -174,6 +175,25 @@ async fn create_trainer(
         Ok(res) => ApiResponse::OK,
         Err(e) => {
             tracing::error!("Failed to create trainer");
+
+            ApiResponse::Error
+        }
+    }
+}
+
+async fn delete_trainer(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i32>,
+) -> ApiResponse<()> {
+    let db = state.db.clone();
+
+    match db
+        .execute("DELETE FROM trainer WHERE trainer_id = $1", &[&id])
+        .await
+    {
+        Ok(res) => ApiResponse::OK,
+        Err(e) => {
+            tracing::error!("Failed to delete trainer");
 
             ApiResponse::Error
         }
