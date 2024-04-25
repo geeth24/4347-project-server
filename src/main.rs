@@ -70,6 +70,7 @@ async fn main() {
         .route("/trainer/:id", delete(delete_trainer))
         .route("/trainer", post(create_trainer))
         .route("/pokemon", get(get_pokemon))
+        .route("/pokemon-abilities/:id", get(get_ability))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -215,6 +216,74 @@ async fn get_trainer(
     }
 }
 
+#[derive(Serialize)]
+struct GetAbilityResponse {
+    ability: Vec<Ability>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Ability {
+    ability_id: i32,
+    name: String,
+    damage: i32,
+    status_effect: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct PokemonAbilities {
+    pokemon_id: i32,
+    ability_id: i32,
+}
+
+
+
+async fn get_ability(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i32>,
+) -> ApiResponse<GetAbilityResponse> {
+    let db = state.db.clone();
+
+
+    match db
+        .query("SELECT * FROM pokemonabilities WHERE pokemon_id = $1", &[&id])
+        .await
+    {
+        Ok(rows) => {
+            let mut abilities: Vec<Ability> = Vec::new();
+            for r in rows {
+                let ability_id: i32 = r.get(1);
+
+                let ability_res = db
+                    .query(
+                        "SELECT * FROM ability WHERE ability_id = $1",
+                        &[&ability_id],
+                    )
+                    .await
+                    .unwrap();
+
+                for ability in ability_res {
+                    let ability = Ability {
+                        ability_id: ability.get(0),
+                        name: ability.get(1),
+                        damage: ability.get(2),
+                        status_effect: ability.get(3),
+                    };
+                    abilities.push(ability);
+                }
+            }
+
+            tracing::info!("{:?}", abilities);
+
+            return ApiResponse::JsonData(GetAbilityResponse { ability: abilities });
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch abilities: {:?}", e);
+
+            return ApiResponse::Error;
+        }
+    }
+}
+
+
 #[derive(Deserialize)]
 struct CreateUserRequest {
     name: String,
@@ -262,9 +331,16 @@ async fn delete_trainer(
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct PokemonFull {
+    pokemon_id: i32,
+    name: String,
+    region: String,
+    abilities: Vec<Ability>,
+}
 #[derive(Serialize)]
 struct GetPokemonResponse {
-    trainers: Vec<Pokemon>,
+    pokemons: Vec<PokemonFull>,
 }
 
 async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokemonResponse> {
@@ -287,13 +363,51 @@ async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokem
                     name: r.get(1),
                     region: region_res.first().unwrap().get(0),
                 };
+
+                let ability_res = db
+                    .query(
+                        "SELECT * FROM pokemonabilities WHERE pokemon_id = $1",
+                        &[&pokemon.pokemon_id],
+                    )
+                    .await
+                    .unwrap();
+
+                let mut abilities = Vec::new();
+                for ability_row in ability_res {
+                    let ability_id: i32 = ability_row.get(1);
+                    let ability_res = db
+                        .query(
+                            "SELECT * FROM ability WHERE ability_id = $1",
+                            &[&ability_id],
+                        )
+                        .await
+                        .unwrap();
+
+                    for ability in ability_res {
+                        let ability = Ability {
+                            ability_id: ability.get(0),
+                            name: ability.get(1),
+                            damage: ability.get(2),
+                            status_effect: ability.get(3),
+                        };
+                        abilities.push(ability);
+                    }
+                }
+
+                let pokemon = PokemonFull {
+                    pokemon_id: pokemon.pokemon_id,
+                    name: pokemon.name,
+                    region: pokemon.region,
+                    abilities,
+                };
+
                 pokemon_rows.push(pokemon);
             }
 
             tracing::info!("{:?}", pokemon_rows);
 
             ApiResponse::JsonData(GetPokemonResponse {
-                trainers: pokemon_rows,
+                pokemons: pokemon_rows,
             })
         }
         Err(e) => {
