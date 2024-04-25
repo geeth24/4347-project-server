@@ -95,7 +95,7 @@ struct Trainer {
 struct Pokemon {
     pokemon_id: i32,
     name: String,
-    region_id: i32,
+    region: String,
 }
 
 #[derive(Serialize)]
@@ -132,10 +132,20 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
                         .unwrap();
 
                     for pokemon in p {
+                        let region_id: i32 = pokemon.get(2);
+                        let region_res = db
+                            .query(
+                                "SELECT region_name FROM region WHERE region_id = $1",
+                                &[&region_id],
+                            )
+                            .await
+                            .unwrap();
+
+                        let region = region_res.first().unwrap();
                         let pokemon = Pokemon {
                             pokemon_id: pokemon.get(0),
                             name: pokemon.get(1),
-                            region_id: pokemon.get(2),
+                            region: region.get(0),
                         };
 
                         pokemon_list.push(pokemon);
@@ -259,19 +269,29 @@ async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokem
 
     match db.query("SELECT * FROM pokemon", &[]).await {
         Ok(rows) => {
-            let mut trainers = Vec::new();
+            let mut pokemon_rows = Vec::new();
             for r in rows {
-                let trainer = Pokemon {
+                let region_id: i32 = r.get(2);
+                let region_res = db
+                    .query(
+                        "SELECT region_name FROM region WHERE region_id = $1",
+                        &[&region_id],
+                    )
+                    .await
+                    .unwrap();
+                let pokemon = Pokemon {
                     pokemon_id: r.get(0),
                     name: r.get(1),
-                    region_id: r.get(2),
+                    region: region_res.first().unwrap().get(0),
                 };
-                trainers.push(trainer);
+                pokemon_rows.push(pokemon);
             }
 
-            tracing::info!("{:?}", trainers);
+            tracing::info!("{:?}", pokemon_rows);
 
-            ApiResponse::JsonData(GetPokemonResponse { trainers })
+            ApiResponse::JsonData(GetPokemonResponse {
+                trainers: pokemon_rows,
+            })
         }
         Err(e) => {
             tracing::error!("Failed to fetch pokemon: {:?}", e);
