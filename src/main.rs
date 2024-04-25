@@ -7,8 +7,8 @@ use axum::{
 };
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use tokio_postgres::{Error, NoTls};
+use std::sync::Arc;
+use tokio_postgres::NoTls;
 use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Serialize)]
@@ -110,24 +110,43 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
         Ok(rows) => {
             let mut trainers = Vec::new();
             for r in rows {
-                // let pokemon_res = db
-                //     .query(
-                //         "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
-                //         &[&r.get(0)],
-                //     )
-                //     .await
-                //     .unwrap();
-                //
-                // let pokemon = Vec::new();
-                // for r in pokemon_res {
-                //     let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
-                // }
+                let trainer_id: i32 = r.get(0);
+
+                let pokemon_res = db
+                    .query(
+                        "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
+                        &[&trainer_id],
+                    )
+                    .await
+                    .unwrap();
+
+                let mut pokemon_list = Vec::new();
+                for p_row in pokemon_res {
+                    let pokemon_id: i32 = p_row.get(0);
+                    let p = db
+                        .query(
+                            "SELECT * FROM pokemon WHERE pokemon_id = $1",
+                            &[&pokemon_id],
+                        )
+                        .await
+                        .unwrap();
+
+                    for pokemon in p {
+                        let pokemon = Pokemon {
+                            pokemon_id: pokemon.get(0),
+                            name: pokemon.get(1),
+                            region_id: pokemon.get(2),
+                        };
+
+                        pokemon_list.push(pokemon);
+                    }
+                }
 
                 let trainer = Trainer {
-                    trainer_id: r.get(0),
+                    trainer_id,
                     name: r.get(1),
                     gym_leader: r.get(2),
-                    pokemon: None,
+                    pokemon: Some(pokemon_list),
                 };
                 trainers.push(trainer);
             }
