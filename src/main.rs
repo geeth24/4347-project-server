@@ -71,6 +71,7 @@ async fn main() {
         .route("/trainer", post(create_trainer))
         .route("/pokemon", get(get_pokemon))
         .route("/pokemon-abilities/:id", get(get_ability))
+        .route("/pokemon-attributes/:id", get(get_attribute))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -283,6 +284,73 @@ async fn get_ability(
     }
 }
 
+#[derive(Serialize)]
+struct GetAttributeResponse {
+    attributes: Vec<Attribute>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Attribute {
+    attribute_id: i32,
+    attribute_name: String,
+    weakness: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct PokemonAttributes {
+    pokemon_id: i32,
+    attribute_id: i32,
+}
+
+
+
+async fn get_attribute(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i32>,
+) -> ApiResponse<GetAttributeResponse> {
+    let db = state.db.clone();
+
+
+    match db
+        .query("SELECT * FROM pokemonattributes WHERE pokemon_id = $1", &[&id])
+        .await
+    {
+        Ok(rows) => {
+            let mut attributes: Vec<Attribute> = Vec::new();
+            for r in rows {
+                let attribute_id: i32 = r.get(1);
+
+                let attribute_res = db
+                    .query(
+                        "SELECT * FROM attribute WHERE attribute_id = $1",
+                        &[&attribute_id],
+                    )
+                    .await
+                    .unwrap();
+
+                for attribute in attribute_res {
+                    let attribute = Attribute {
+                        attribute_id: attribute.get(0),
+                        attribute_name: attribute.get(1),
+                        weakness: attribute.get(2),
+                    };
+                    attributes.push(attribute);
+                }
+            }
+
+            tracing::info!("{:?}", attributes);
+
+            return ApiResponse::JsonData(GetAttributeResponse { attributes });
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch attributes: {:?}", e);
+
+            return ApiResponse::Error;
+        }
+    }
+
+}
+
+
 
 #[derive(Deserialize)]
 struct CreateUserRequest {
@@ -337,6 +405,7 @@ struct PokemonFull {
     name: String,
     region: String,
     abilities: Vec<Ability>,
+    attributes: Vec<Attribute>,
 }
 #[derive(Serialize)]
 struct GetPokemonResponse {
@@ -394,11 +463,42 @@ async fn get_pokemon(State(state): State<Arc<AppState>>) -> ApiResponse<GetPokem
                     }
                 }
 
+                let attribute_res = db
+                    .query(
+                        "SELECT * FROM pokemonattributes WHERE pokemon_id = $1",
+                        &[&pokemon.pokemon_id],
+                    )
+                    .await
+                    .unwrap();
+
+                let mut attributes = Vec::new();
+                for attribute_row in attribute_res {
+                    let attribute_id: i32 = attribute_row.get(1);
+                    let attribute_res = db
+                        .query(
+                            "SELECT * FROM attribute WHERE attribute_id = $1",
+                            &[&attribute_id],
+                        )
+                        .await
+                        .unwrap();
+
+                    for attribute in attribute_res {
+                        let attribute = Attribute {
+                            attribute_id: attribute.get(0),
+                            attribute_name: attribute.get(1),
+                            weakness: attribute.get(2),
+                        };
+                        attributes.push(attribute);
+                    }
+                }
+
+
                 let pokemon = PokemonFull {
                     pokemon_id: pokemon.pokemon_id,
                     name: pokemon.name,
                     region: pokemon.region,
                     abilities,
+                    attributes,
                 };
 
                 pokemon_rows.push(pokemon);
