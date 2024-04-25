@@ -5,6 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+// use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tokio_postgres::{Error, NoTls};
@@ -41,8 +42,10 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    // dotenev().ok();
     tracing_subscriber::fmt::init();
 
+    let user = std::env::var("POSTGRES_USER").expect("Missing user env var");
     let (client, connection) =
         tokio_postgres::connect("postgres://beam:postgres@localhost/postgres", NoTls)
             .await
@@ -105,18 +108,18 @@ async fn get_trainers(State(state): State<Arc<AppState>>) -> ApiResponse<GetTrai
         Ok(rows) => {
             let mut trainers = Vec::new();
             for r in rows {
-                let pokemon_res = db
-                    .query(
-                        "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
-                        &[&r.get(0)],
-                    )
-                    .await
-                    .unwrap();
-
-                let pokemon = Vec::new();
-                for r in pokemon_res {
-                    let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
-                }
+                // let pokemon_res = db
+                //     .query(
+                //         "SELECT pokemon_id FROM trainerspokemon WHERE trainer_id = $1",
+                //         &[&r.get(0)],
+                //     )
+                //     .await
+                //     .unwrap();
+                //
+                // let pokemon = Vec::new();
+                // for r in pokemon_res {
+                //     let p = db.query("SELECT * FROM pokemon WHERE pokemon_id = $1", &[&r.get(0)]);
+                // }
 
                 let trainer = Trainer {
                     trainer_id: r.get(0),
